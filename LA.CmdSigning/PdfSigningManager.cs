@@ -43,7 +43,7 @@ namespace LA.CmdSigning {
         }
 
         /// <summary>
-        /// Method that creates an intermediary pdf and calculates the hash that must be sent to AMA for signing
+        /// Method that creates a temporary pdf for calating the hash that must be sent to AMA for signing
         /// </summary>
         /// <param name="signingInformation">Information about the signature and its appearance</param>
         /// <returns>Information with the hashes required for signing and completing the retrieved signature injection</returns>
