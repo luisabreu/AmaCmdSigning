@@ -62,6 +62,8 @@ namespace LA.CmdSigning {
                                                  50))
                       .SetPageNumber(signingInformation.PageNumber)
                       .SetLayer2FontSize(6f)
+                      .SetReason(signingInformation.Reason)
+                      .SetLocation(signingInformation.Location)
                       .SetLayer2Text(BuildVisibleInformation(signingInformation.Reason, signingInformation.Location))
                       .SetCertificate(_userCertificateChain[0]);
 
