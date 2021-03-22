@@ -24,8 +24,7 @@ namespace CmdSigningClient {
 
             var encryptionHelper = new EncryptionHelper(amaCert);
             var amaService = new AmaSigningService(amaOptions, 
-                                                   encryptionHelper, 
-                                                   amaOptions.WebServiceUrl);
+                                                   encryptionHelper);
 
             Console.WriteLine("Please introduce your phone number: ");
             var phoneNumber = Console.ReadLine();

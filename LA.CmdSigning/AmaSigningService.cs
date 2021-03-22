@@ -17,22 +17,16 @@ namespace LA.CmdSigning {
         /// Creates a new instance of the service
         /// </summary>
         /// <param name="options">Options used for calling the web service</param>
-        /// <param name="encryptionHelper">Helper for </param>
+        /// <param name="encryptionHelper">Helper for encpryting/decrypting</param>
         public AmaSigningService(AmaOptions options, 
-                                 EncryptionHelper encryptionHelper, 
-                                 string amaWebServiceUrl) {
+                                 EncryptionHelper encryptionHelper) {
             if (options == null) {
                 throw new ArgumentNullException();
             }
 
-            Ama.SCMDServiceClient.Url = amaWebServiceUrl;
+            Ama.SCMDServiceClient.AmaOptions = options;
 
             _client = new SCMDServiceClient();
-            var httpBinding = (BasicHttpsBinding) _client.Endpoint.Binding;
-            httpBinding.Security.Transport.ClientCredentialType = HttpClientCredentialType.Basic;
-            _client.ClientCredentials.UserName.UserName = options.Username;
-            _client.ClientCredentials.UserName.Password = options.Password;
-
             _encryptionHelper = encryptionHelper;
             _applicationId = Encoding.UTF8.GetBytes(options.ApplicationId);
         }
