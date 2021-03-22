@@ -1,6 +1,7 @@
 # AmaCmdSigning
 Demo project for showing how to use the AMA CMD Documento Digital Signing. 
 
+
 ## What's in it
 The solution was entirely written in .NET 5.0 (C#) and it consists of 2 projects: 
 * an assembly which illustrates the required code for interacting with AMA and the itext7 (used for signing the document)
@@ -18,5 +19,5 @@ You'll also need to set the path to the AMA's cert file that will be used for en
 The demo code uses freetsa for timestamping and uses clr and ocsp for revocation status. These items are optional and if you're using self-signed certificates, you'll have to add
 
 ### About the code
-This is demo code. You can use it as you wish, but please notice that it should be hardened if you intend to use it on a real app. 
+This is demo code. You can use it as you wish, but please notice that it should be hardened if you intend to use it on a real app. If you want, you can give me some credit for it (though it's not required). If you find a bug, please submit a fix for it so that others can benefit from it. If you decide to use this code, you're responsible for it. I'm not offering any help or support for this sample.
 
