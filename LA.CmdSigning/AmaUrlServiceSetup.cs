@@ -3,7 +3,7 @@ using LA.CmdSigning;
 
 namespace Ama {
     partial class SCMDServiceClient {
-        public static AmaOptions AmaOptions = new AmaOptions();
+        public static AmaOptions AmaOptions = new();
 
         /// <summary>
         /// Implement partial method to specify AMA's Web Service URL

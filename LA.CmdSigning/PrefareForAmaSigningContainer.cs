@@ -2,9 +2,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
+using iText.Commons.Bouncycastle.Cert;
 using iText.Kernel.Pdf;
 using iText.Signatures;
-using Org.BouncyCastle.X509;
 
 namespace LA.CmdSigning {
     /// <summary>
@@ -18,7 +19,7 @@ namespace LA.CmdSigning {
                                                           };
 
 
-        private readonly IEnumerable<X509Certificate> _certificates;
+        private readonly IEnumerable<IX509Certificate> _certificates;
         private readonly IEnumerable<byte[]>? _crlBytesCollection;
         private readonly IEnumerable<byte[]>? _ocspBytes;
 
@@ -28,7 +29,7 @@ namespace LA.CmdSigning {
         /// <param name="certificates">User certficate chain</param>
         /// <param name="crlBytesCollection">Collection of CRL bytes for revocation check</param>
         /// <param name="ocspBytes">Collection od OCSP bytes for revocation</param>
-        public PrefareForAmaSigningContainer(IEnumerable<X509Certificate> certificates,
+        public PrefareForAmaSigningContainer(IEnumerable<IX509Certificate> certificates,
                                    IEnumerable<byte[]>? crlBytesCollection,
                                    IEnumerable<byte[]>? ocspBytes) : base(PdfName.Adobe_PPKLite, PdfName.Adbe_pkcs7_detached) {
             _certificates = certificates;
@@ -53,25 +54,25 @@ namespace LA.CmdSigning {
         /// <returns></returns>
         public override byte[] Sign(Stream data) {
             // crea pdf pkcs7 for signing the document
-            var sgn = new PdfPKCS7(null,
-                                   _certificates.ToArray(),
-                                   DigestAlgorithms.SHA256,
-                                   false);
+            PdfPKCS7 sgn = new(null,
+                               _certificates.ToArray(),
+                               DigestAlgorithms.SHA256,
+                               false);
             // get hash for document bytes
             NakedHash = DigestAlgorithms.Digest(data, DigestAlgorithms.SHA256);
 
             // get attributes
-            var docBytes = sgn.GetAuthenticatedAttributeBytes(NakedHash,
-                                                              PdfSigner.CryptoStandard.CMS,
-                                                              _ocspBytes?.ToList(),
-                                                              _crlBytesCollection?.ToList());
+            byte[]? docBytes = sgn.GetAuthenticatedAttributeBytes(NakedHash,
+                                                                  PdfSigner.CryptoStandard.CMS,
+                                                                  _ocspBytes?.ToList(),
+                                                                  _crlBytesCollection?.ToList());
             // hash it again
-            using var hashMemoryStream = new MemoryStream(docBytes, false);
-            var docBytesHash = DigestAlgorithms.Digest(hashMemoryStream, DigestAlgorithms.SHA256);
+            using MemoryStream hashMemoryStream = new(docBytes, false);
+            byte[]? docBytesHash = DigestAlgorithms.Digest(hashMemoryStream, DigestAlgorithms.SHA256);
 
 
             //prepend sha256 prefix
-            var totalHash = new byte[_sha256SigPrefix.Length + docBytesHash.Length];
+            byte[] totalHash = new byte[_sha256SigPrefix.Length + docBytesHash.Length];
             _sha256SigPrefix.CopyTo(totalHash, 0);
             docBytesHash.CopyTo(totalHash, _sha256SigPrefix.Length);
             HashToBeSignedByAma = totalHash;
@@ -80,5 +81,3 @@ namespace LA.CmdSigning {
     }
 
 }
-
-

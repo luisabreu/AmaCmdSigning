@@ -1,16 +1,17 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
+using iText.Commons.Bouncycastle.Cert;
 using iText.Kernel.Pdf;
 using iText.Signatures;
-using Org.BouncyCastle.X509;
 
 namespace LA.CmdSigning {
     /// <summary>
     /// Container for injecting AMA's calculated signature (and clr and ocsp information if required)
     /// </summary>
     public class InjectAmaSignatureContainer : IExternalSignatureContainer {
-        private readonly IEnumerable<X509Certificate> _certificates;
+        private readonly IEnumerable<IX509Certificate> _certificates;
         private readonly IEnumerable<byte[]>? _crlBytesCollection;
         private readonly byte[] _documentHash;
         private readonly IEnumerable<byte[]>? _ocspBytes;
@@ -27,7 +28,7 @@ namespace LA.CmdSigning {
         /// <param name="ocspBytes">OCSP information that should be embedded</param>
         /// <param name="tsaClient">TSA client that should be used for timestamping the document</param>
         public InjectAmaSignatureContainer(byte[] signature,
-                                                   IEnumerable<X509Certificate> certificates,
+                                                   IEnumerable<IX509Certificate> certificates,
                                                    byte[] documentHash,
                                                    IEnumerable<byte[]>? crlBytesCollection,
                                                    IEnumerable<byte[]>? ocspBytes,
@@ -50,20 +51,20 @@ namespace LA.CmdSigning {
              sgn.SetExternalDigest(_signature, null, "RSA");
              return sgn.GetEncodedPKCS7();*/
 
-            var sgn = new PdfPKCS7(null,
-                                   _certificates.ToArray(),
-                                   DigestAlgorithms.SHA256,
-                                   false);
+            PdfPKCS7 sgn = new(null,
+                               _certificates.ToArray(),
+                               DigestAlgorithms.SHA256,
+                               false);
             // set the signature bytes
-            sgn.SetExternalDigest(_signature,
-                                  null,
-                                  "RSA");
+            sgn.SetExternalSignatureValue(_signature,
+                                          null,
+                                          "RSA");
             // call GetEncoded with the same parameters as the original GetAuthenticatedAtt...
-            var encodedSig = sgn.GetEncodedPKCS7(_documentHash,
-                                                 PdfSigner.CryptoStandard.CMS,
-                                                 _tsaClient,
-                                                 _ocspBytes?.ToList(),
-                                                 _crlBytesCollection?.ToList());
+            byte[]? encodedSig = sgn.GetEncodedPKCS7(_documentHash,
+                                                     PdfSigner.CryptoStandard.CMS,
+                                                     _tsaClient,
+                                                     _ocspBytes?.ToList(),
+                                                     _crlBytesCollection?.ToList());
 
             return encodedSig;
         }

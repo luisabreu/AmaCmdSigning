@@ -1,10 +1,14 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
+using System.Collections.ObjectModel;
+using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using Org.BouncyCastle.X509;
-using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
+using iText.Bouncycastleconnector;
+using iText.Commons.Bouncycastle;
+using iText.Commons.Bouncycastle.Cert;
+using iText.Commons.Bouncycastle.Openssl;
+
 
 namespace LA.CmdSigning {
     /// <summary>
@@ -29,14 +33,14 @@ namespace LA.CmdSigning {
         }
 
         private byte[] EncryptRsa(byte[] data) {
-            using var rsa = _certificate.GetRSAPublicKey();
+            using RSA? rsa = _certificate.GetRSAPublicKey();
             rsa!.ExportParameters(false);
 
             return rsa.Encrypt(data, RSAEncryptionPadding.Pkcs1);
         }
 
         private byte[] DecryptRsa(byte[] data) {
-            using var rsa = _certificate.GetRSAPublicKey();
+            using RSA? rsa = _certificate.GetRSAPublicKey();
             rsa!.ExportParameters(false);
             return rsa.Decrypt(data, RSAEncryptionPadding.Pkcs1);
         }
@@ -47,7 +51,7 @@ namespace LA.CmdSigning {
         /// <param name="text">String to be encrypted</param>
         /// <returns>An array with the encrypted string</returns>
         public byte[] EncryptString(string text) {
-            var textBytes = Encoding.ASCII.GetBytes(text);
+            byte[] textBytes = Encoding.ASCII.GetBytes(text);
             return EncryptRsa(textBytes);
         }
 
@@ -57,7 +61,7 @@ namespace LA.CmdSigning {
         /// <param name="data">Array to be decrypted</param>
         /// <returns>Decrypted string</returns>
         public string DecryptString(byte[] data) {
-            var dataDec = DecryptRsa(data);
+            byte[] dataDec = DecryptRsa(data);
             return Encoding.UTF8.GetString(dataDec);
         }
 
@@ -66,12 +70,23 @@ namespace LA.CmdSigning {
         /// </summary>
         /// <param name="certificate">string with the certificate to be parser</param>
         /// <returns>A readonly list of <see cref="System.Security.Cryptography.X509Certificates.X509Certificate"/></returns>
-        public static IReadOnlyList<X509Certificate> ParseStringIntoCertificateChain(string certificate) {
-            var bytes = Encoding.ASCII.GetBytes(certificate);
-            var certs = new X509CertificateParser().ReadCertificates(bytes)
-                                                   .Cast<X509Certificate>()
-                                                   .ToList();
-            return certs;
+        public static IReadOnlyList<IX509Certificate> ParseStringIntoCertificateChain(string certificate) {
+            List<IX509Certificate> certificates = new( );
+            IBouncyCastleFactory factory = BouncyCastleFactoryCreator.GetFactory( );
+
+            using TextReader reader = new StringReader(certificate);
+            IPemReader parser = factory.CreatePEMParser(reader, null);
+            object? cert = null;
+            while( ( cert = parser.ReadObject( ) ) is not null ) {
+                if( cert is not IX509Certificate parsedCertificate ) {
+                    continue;
+                }
+                certificates.Add(parsedCertificate);
+            }
+
+            return certificates.AsReadOnly(  );
+            
+            
         }
     }
 }

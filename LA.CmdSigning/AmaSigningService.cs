@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ServiceModel;
 using System.Text;
 using System.Threading.Tasks;
 using Ama;
-using Org.BouncyCastle.X509;
+using iText.Commons.Bouncycastle.Cert;
 using static System.GC;
 
 namespace LA.CmdSigning {
@@ -42,15 +41,15 @@ namespace LA.CmdSigning {
         /// </summary>
         /// <param name="userId">User's phone number (+351 XXXXXXXXX)</param>
         /// <returns>List of certificates (ordered from user to root)</returns>
-        public async Task<IEnumerable<X509Certificate>> GetUserCertificateChainAsync(string userId) {
-            var encryptedUserId = EncryptAndConvertToBase64(AdaptUserId(userId));
-            var certificateChainInText = await _client.GetCertificateAsync(_applicationId, encryptedUserId);
+        public async Task<IEnumerable<IX509Certificate>> GetUserCertificateChainAsync(string userId) {
+            string encryptedUserId = EncryptAndConvertToBase64(AdaptUserId(userId));
+            string? certificateChainInText = await _client.GetCertificateAsync(_applicationId, encryptedUserId);
             if (certificateChainInText == null) {
                 throw new InvalidOperationException("Couldn't retrieve certificate");
             }
 
-            var certificates = EncryptionHelper.ParseStringIntoCertificateChain(certificateChainInText);
-            return (IEnumerable<X509Certificate>) certificates;
+            IReadOnlyList<IX509Certificate> certificates = EncryptionHelper.ParseStringIntoCertificateChain(certificateChainInText);
+            return (IEnumerable<IX509Certificate>) certificates;
         }
 
         /// <summary>
@@ -65,14 +64,14 @@ namespace LA.CmdSigning {
                                                               string documentName,
                                                               string userId,
                                                               string cmdSignPin) {
-            var requestInfo = new SignRequest {
-                                                  ApplicationId = _applicationId,
-                                                  DocName = documentName,
-                                                  Hash = documentHash,
-                                                  Pin = EncryptAndConvertToBase64(cmdSignPin),
-                                                  UserId = EncryptAndConvertToBase64(AdaptUserId(userId))
-                                              };
-            var status = await _client.SCMDSignAsync(requestInfo);
+            SignRequest requestInfo = new() {
+                                                ApplicationId = _applicationId,
+                                                DocName = documentName,
+                                                Hash = documentHash,
+                                                Pin = EncryptAndConvertToBase64(cmdSignPin),
+                                                UserId = EncryptAndConvertToBase64(AdaptUserId(userId))
+                                            };
+            SignStatus? status = await _client.SCMDSignAsync(requestInfo);
             if (!string.Equals(status.Code, "200")) {
                 throw new InvalidOperationException($"The doc signing couldn't start: {status.Message}");
             }
@@ -87,11 +86,11 @@ namespace LA.CmdSigning {
         /// <param name="processId">ID that identifies the document that was signed before</param>
         /// <returns></returns>
         public async Task<byte[]> ConfirmDocSigningAsync(string otpCode, string processId) {
-            var code = EncryptAndConvertToBase64(otpCode);
+            string code = EncryptAndConvertToBase64(otpCode);
 
-            var status = await _client.ValidateOtpAsync(code,
-                                                        processId,
-                                                        _applicationId);
+            SignResponse? status = await _client.ValidateOtpAsync(code,
+                                                                  processId,
+                                                                  _applicationId);
             if (!string.Equals(status.Status.Code, "200")) {
                 throw new InvalidOperationException($"The doc signing couldn't be concluded: {status.Status.Message}");
             }

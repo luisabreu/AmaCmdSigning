@@ -2,15 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
-using iText.IO.Image;
-using iText.Kernel.Font;
+using iText.Commons.Bouncycastle.Cert;
 using iText.Kernel.Geom;
 using iText.Kernel.Pdf;
 using iText.Signatures;
-using Org.BouncyCastle.X509;
-using Path = System.IO.Path;
 
 namespace LA.CmdSigning {
     /// <summary>
@@ -24,7 +20,7 @@ namespace LA.CmdSigning {
         private readonly ITSAClient? _tsaClient;
 
 
-        private readonly IList<X509Certificate> _userCertificateChain;
+        private readonly IList<IX509Certificate> _userCertificateChain;
 
         /// <summary>
         /// Creates a new instance from the user certificate chain. Calling this ctor will not add OCSP, CRL or TSA to the document
@@ -32,7 +28,7 @@ namespace LA.CmdSigning {
         /// <param name="userCertificateChainChain"></param>
         /// <param name="ocspClient">OSCP client used for certificate revocation lists</param>
         /// <param name="crlClients">CRL client list for certificate revocation lists</param>
-        public PdfSigningManager(IEnumerable<X509Certificate> userCertificateChainChain,
+        public PdfSigningManager(IEnumerable<IX509Certificate> userCertificateChainChain,
                                  IOcspClient? ocspClient = null,
                                  IEnumerable<ICrlClient>? crlClients = null,
                                  ITSAClient? tsaClient = null) {
@@ -48,13 +44,13 @@ namespace LA.CmdSigning {
         /// <param name="signingInformation">Information about the signature and its appearance</param>
         /// <returns>Information with the hashes required for signing and completing the retrieved signature injection</returns>
         public HashesForSigning CreateTemporaryPdfForSigning(SigningInformation signingInformation) {
-            var pdfSigner = new PdfSigner(new PdfReader(signingInformation.PathToPdf),
-                                          new FileStream(signingInformation.PathToIntermediaryPdf, FileMode.Create),
-                                          new StampingProperties());
+            PdfSigner pdfSigner = new(new PdfReader(signingInformation.PathToPdf),
+                                      new FileStream(signingInformation.PathToIntermediaryPdf, FileMode.Create),
+                                      new StampingProperties());
             pdfSigner.SetFieldName(_signatureFieldname);
 
 
-            var appearance = pdfSigner.GetSignatureAppearance();
+            PdfSignatureAppearance? appearance = pdfSigner.GetSignatureAppearance();
 
             appearance.SetPageRect(new Rectangle(10,
                                                  750,
@@ -73,12 +69,12 @@ namespace LA.CmdSigning {
             }
 
 
-            var crlBytesList = GetCrlByteList();
+            IList<byte[]>? crlBytesList = GetCrlByteList();
 
-            var ocspBytesList = GetOcspBytesList();
+            IList<byte[]>? ocspBytesList = GetOcspBytesList();
             
             
-            var container = new PrefareForAmaSigningContainer(_userCertificateChain, crlBytesList, ocspBytesList);
+            PrefareForAmaSigningContainer container = new(_userCertificateChain, crlBytesList, ocspBytesList);
             pdfSigner.SignExternalContainer(container, EstimateContainerSize(crlBytesList)); // add size for timestamp in signature
 
             return new HashesForSigning(container.HashToBeSignedByAma, container.NakedHash);
@@ -89,27 +85,27 @@ namespace LA.CmdSigning {
         /// </summary>
         /// <param name="signatureInformation">Information required for finding the temporary PDF</param>
         public void SignIntermediatePdf(SignatureInformation signatureInformation) {
-            var document = new PdfDocument(new PdfReader(signatureInformation.PathToIntermediaryPdf));
-            using var writer = new FileStream(signatureInformation.pathToSignedPdf, FileMode.Create);
+            PdfDocument document = new(new PdfReader(signatureInformation.PathToIntermediaryPdf));
+            using FileStream writer = new(signatureInformation.pathToSignedPdf, FileMode.Create);
 
             
-            var crlBytesList = GetCrlByteList();
-            var ocspBytesList = GetOcspBytesList();
+            IList<byte[]>? crlBytesList = GetCrlByteList();
+            IList<byte[]>? ocspBytesList = GetOcspBytesList();
 
 
-            var container = new InjectAmaSignatureContainer(signatureInformation.Signature,
-                                                                    _userCertificateChain,
-                                                                    signatureInformation.NakedHashFromIntermediaryPdf,
-                                                                    crlBytesList,
-                                                                    ocspBytesList,
-                                                                    _tsaClient);
+            InjectAmaSignatureContainer container = new(signatureInformation.Signature,
+                                                        _userCertificateChain,
+                                                        signatureInformation.NakedHashFromIntermediaryPdf,
+                                                        crlBytesList,
+                                                        ocspBytesList,
+                                                        _tsaClient);
             PdfSigner.SignDeferred(document, _signatureFieldname, writer, container);
         }
 
         private string BuildVisibleInformation(string? reason = "null", string? location = null) {
             CertificateInfo.X500Name subjectFields = CertificateInfo.GetSubjectFields(_userCertificateChain[0]);
 
-            var stringBuilder = new StringBuilder();
+            StringBuilder stringBuilder = new();
             stringBuilder.AppendLine($"Assinado por {subjectFields?.GetField("CN") ?? subjectFields?.GetField("E") ?? ""}");
             stringBuilder.AppendLine($"BI: {subjectFields?.GetField("SN") ?? ""}");
             stringBuilder.AppendLine($"Date: {DateTime.Now:yyyy.MM.dd HH:mm:ss}");
@@ -130,15 +126,11 @@ namespace LA.CmdSigning {
                                                                               .SelectMany(crlBytes => crlBytes)
                                                                               .ToList();
 
-        private IList<byte[]>? GetCrlClientBytesList(X509Certificate certificate) {
-            if(_crlClients == null) {
-                return null;
-            }
-
-            var crls = _crlClients.Select(crlClient => crlClient.GetEncoded(certificate, null))
-                                  .Where(encoded => encoded != null)
-                                  .SelectMany(bytes => bytes)
-                                  .ToList();
+        private IList<byte[]>? GetCrlClientBytesList(IX509Certificate certificate) {
+            List<byte[]>? crls = _crlClients?.Select(crlClient => crlClient.GetEncoded(certificate, null))
+                                            .Where(encoded => encoded != null)
+                                            .SelectMany(bytes => bytes)
+                                            .ToList();
             return crls;
         }
 
@@ -148,9 +140,9 @@ namespace LA.CmdSigning {
                 return null;
             }
             
-            var list = new List<byte[]>();
-            for(var i = 0; i < _userCertificateChain.Count - 1; i++) {
-                var encoded = _ocspClient.GetEncoded(_userCertificateChain[i], _userCertificateChain[i + 1], null);
+            List<byte[]> list = new();
+            for(int i = 0; i < _userCertificateChain.Count - 1; i++) {
+                byte[]? encoded = _ocspClient.GetEncoded(_userCertificateChain[i], _userCertificateChain[i + 1], null);
                 if(encoded != null) {
                     list.Add(encoded);
                 }

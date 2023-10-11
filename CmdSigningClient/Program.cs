@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Ama;
+using iText.Commons.Bouncycastle.Cert;
 using iText.IO.Image;
 using iText.Signatures;
 using LA.CmdSigning;
@@ -17,56 +16,56 @@ namespace CmdSigningClient {
         private static async Task Main(string[] args) {
             Console.WriteLine("CMD Signing Docs Demo...");
 
-            var amaOptions = LoadFromJsonFile();
-            var amaCert = LoadAmaCertificate();
+            AmaOptions amaOptions = LoadFromJsonFile();
+            X509Certificate2 amaCert = LoadAmaCertificate();
             
             
 
-            var encryptionHelper = new EncryptionHelper(amaCert);
-            var amaService = new AmaSigningService(amaOptions, 
-                                                   encryptionHelper);
+            EncryptionHelper encryptionHelper = new(amaCert);
+            AmaSigningService amaService = new(amaOptions, 
+                                               encryptionHelper);
 
             Console.WriteLine("Please introduce your phone number: ");
-            var phoneNumber = Console.ReadLine();
+            string? phoneNumber = Console.ReadLine();
 
-            var userCertificatesChain = await amaService.GetUserCertificateChainAsync(phoneNumber!);
+            IEnumerable<IX509Certificate> userCertificatesChain = await amaService.GetUserCertificateChainAsync(phoneNumber!);
 
-            var pdfToBeSigned = "d:\\code\\ama\\doc1.pdf";
-            var temporaryPdf = "d:\\code\\ama\\doc1_int.pdf";
-            var finalPdf = "d:\\code\\ama\\doc1_signed.pdf";
+            string pdfToBeSigned = "d:\\code\\ama\\doc1.pdf";
+            string temporaryPdf = "d:\\code\\ama\\doc1_int.pdf";
+            string finalPdf = "d:\\code\\ama\\doc1_signed.pdf";
 
             // freetsa -> config information: https://www.freetsa.org/guide/demonstration-digitally-signed-PDF-documents.html
-            var tsaClient = new TSAClientBouncyCastle("https://freetsa.org/tsr");
+            TSAClientBouncyCastle tsaClient = new("https://freetsa.org/tsr");
             // crl list for revocation
-            var crlClients = new List<ICrlClient> {new CrlClientOnline(userCertificatesChain.ToArray())};
+            List<ICrlClient> crlClients = new() {new CrlClientOnline(userCertificatesChain.ToArray())};
             // added ocsp client
-            var ocspClient = new OcspClientBouncyCastle(null);
+            OcspClientBouncyCastle ocspClient = new(null);
 
-            var pdfSigner = new PdfSigningManager(userCertificatesChain,
-                                                  crlClients: crlClients,
-                                                  ocspClient: ocspClient,
-                                                  tsaClient: tsaClient);
-            var pathToLogo = "d:\\code\\ama\\logo.jpg";
-            var logo = ImageDataFactory.CreateJpeg(new Uri(pathToLogo));
-            var hashInformation = pdfSigner.CreateTemporaryPdfForSigning(new SigningInformation(pdfToBeSigned,
-                                                                                                   temporaryPdf,
-                                                                                                   Reason: "Because yes",
-                                                                                                   Location: "Funchal",
-                                                                                                   Logo: logo));
+            PdfSigningManager pdfSigner = new(userCertificatesChain,
+                                              crlClients: crlClients,
+                                              ocspClient: ocspClient,
+                                              tsaClient: tsaClient);
+            string pathToLogo = "d:\\code\\ama\\logo.jpg";
+            ImageData? logo = ImageDataFactory.CreateJpeg(new Uri(pathToLogo));
+            HashesForSigning hashInformation = pdfSigner.CreateTemporaryPdfForSigning(new SigningInformation(pdfToBeSigned,
+                                                                                                             temporaryPdf,
+                                                                                                             Reason: "Because yes",
+                                                                                                             Location: "Funchal",
+                                                                                                             Logo: logo));
 
             Console.WriteLine("Please introduce your CMD signing pin: ");
-            var cmdSigningPin = ReadSecretValueFromConsole();
+            string cmdSigningPin = ReadSecretValueFromConsole();
             
 
-            var processId = await amaService.StartDocSigningProcessAsync(hashInformation.HashForSigning,
-                                                                         "Doc1.pdf",
-                                                                         phoneNumber!,
-                                                                         cmdSigningPin!);
+            string processId = await amaService.StartDocSigningProcessAsync(hashInformation.HashForSigning,
+                                                                            "Doc1.pdf",
+                                                                            phoneNumber!,
+                                                                            cmdSigningPin!);
 
             Console.WriteLine($"{Environment.NewLine}Please introduce the PIN you've received on your phone");
-            var otpCode = Console.ReadLine();
+            string? otpCode = Console.ReadLine();
 
-            var signature = await amaService.ConfirmDocSigningAsync(otpCode!, processId);
+            byte[] signature = await amaService.ConfirmDocSigningAsync(otpCode!, processId);
 
             pdfSigner.SignIntermediatePdf(new SignatureInformation(temporaryPdf,
                                                                    finalPdf,
@@ -80,10 +79,10 @@ namespace CmdSigningClient {
         }
 
         private static string ReadSecretValueFromConsole( ) {
-            var pass = string.Empty;
+            string pass = string.Empty;
             ConsoleKey key;
             do {
-                var keyInfo = Console.ReadKey(true);
+                ConsoleKeyInfo keyInfo = Console.ReadKey(true);
                 key = keyInfo.Key;
 
                 if(key == ConsoleKey.Backspace && pass.Length > 0) {
@@ -100,11 +99,11 @@ namespace CmdSigningClient {
         }
 
         private static AmaOptions LoadFromJsonFile() {
-            var jsonOptions = new JsonSerializerOptions {
-                                                        PropertyNameCaseInsensitive = true
-                                                    };
-            var loadedOptions = JsonSerializer.Deserialize<AmaOptions>(File.ReadAllText("d:\\code\\ama\\credentials.txt"),
-                                                                           jsonOptions);
+            JsonSerializerOptions jsonOptions = new() {
+                                                          PropertyNameCaseInsensitive = true
+                                                      };
+            AmaOptions? loadedOptions = JsonSerializer.Deserialize<AmaOptions>(File.ReadAllText("d:\\code\\ama\\credentials.txt"),
+                                                                               jsonOptions);
             return loadedOptions;
         }
 
