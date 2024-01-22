@@ -40,11 +40,23 @@ namespace CmdSigningClient {
             List<ICrlClient> crlClients = new() {new CrlClientOnline(userCertificatesChain.ToArray())};
             // added ocsp client
             OcspClientBouncyCastle ocspClient = new(null);
+            
+            SignerHelper sgn = new SignerHelper(userCertificatesChain.ToArray(),
+                                                crlClients,
+                                                ocspClient);
 
+            // note that crl and ocsp bytes should be the same for
+            // generating intermediary and signed pdf
+            // if you're using the component on a web site between calls
+            // please cache the crl and ocsp bytes list
             PdfSigningManager pdfSigner = new(userCertificatesChain,
+                                              sgn.CrlBytesList,
+                                              sgn.OcspBytesList,
+                                              sgn,
                                               crlClients: crlClients,
                                               ocspClient: ocspClient,
                                               tsaClient: tsaClient);
+            
             string pathToLogo = "d:\\code\\ama\\logo.jpg";
             ImageData? logo = ImageDataFactory.CreateJpeg(new Uri(pathToLogo));
             HashesForSigning hashInformation = pdfSigner.CreateTemporaryPdfForSigning(new SigningInformation(pdfToBeSigned,
